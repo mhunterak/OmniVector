@@ -1,5 +1,6 @@
 '''
-Use your choice of python web frameworks to create an nested web api that models the following objects:
+Use your choice of python web frameworks to create an nested web api that
+models the following objects:
 
 - Project
 - Stage
@@ -18,7 +19,8 @@ The endpoints that need to be implemented are as follows:
 /projects/{project_pk}/stages/ - GET
 /projects/{project_pk}/stages/{stage_pk}/ - GET, PUT, POST, DELETE
 /projects/{project_pk}/stages/{stage_pk}/activities/ - GET
-/projects/{project_pk}/stages/{stage_pk}/activities/{pk}/ - GET, PUT, POST, DELETE
+/projects/{project_pk}/stages/{stage_pk}/activities/{pk}/
+    - GET, PUT, POST, DELETE
 '''
 
 import json
@@ -59,7 +61,8 @@ def after_request(response):
 
 class Projects(Resource):
     '''
-    This generic endpoint is used for getting a list of all projects, and for posting a new project.
+    This generic endpoint is used for getting a list of all projects,
+    and for posting a new project.
     '''
     # /projects/ - GET
 
@@ -96,12 +99,6 @@ class Project(Resource):
     # /projects/{pk} - GET, PUT, POST, DELETE
 
     def get(self, pk):
-        if not pk:
-            projects = models.Project.select()
-            return_array = []
-            for project in projects:
-                return_array.append(model_to_dict(project))
-            return {'projects': json.dumps(return_array)}
         try:
             project = models.Project.get(pk)
             return {'projects': model_to_dict(project)}
@@ -109,8 +106,6 @@ class Project(Resource):
             abort(404)
 
     def put(self, pk):
-        print(request.form['name'])
-        print(request.form['description'])
         project = models.Project.get(pk)
         if request.form['name']:
             project.name = request.form['name']
@@ -148,13 +143,14 @@ api.add_resource(Project, '/project/<int:pk>')
 
 class Stages(Resource):
     '''
-    This generic endpoint is used for getting a list of all stages, and for posting a new stage.
+    This generic endpoint is used for getting a list of all stages for a
+    specific project, and for posting a new stage.
     # /projects/{project_pk}/stages - GET
     '''
 
     def get(self, project_pk):
         '''
-        gets all stages
+        gets all stages for a project
         '''
         stages = models.Stage.select().where(models.Stage.project == project_pk)
         return_array = []
@@ -162,14 +158,16 @@ class Stages(Resource):
             return_array.append(model_to_dict(stage))
         return {'stages': json.dumps(return_array)}
 
-    def post(self):
+    def post(self, project_pk):
         '''
         # /projects/{project_pk}/stages POST
-        Though this wasn't requested, I propose posting new data here is the best place to make a new stage
+        Though this wasn't requested, I propose posting new data here is the
+        best place to make a new stage
         '''
         stage = models.Stage.create(
             name=request.form['name'],
-            description=request.form['description']
+            description=request.form['description'],
+            project=project_pk
         )
         return {'stage': model_to_dict(stage)}, 201
 
@@ -194,17 +192,14 @@ class Stage(Resource):
             abort(404)
 
     def put(self, project_pk, stage_pk):
-        # TODO switch put and post
-        print(request.form['name'])
-        print(request.form['description'])
         project = models.Project.get(project_pk)
         stage = models.Stage.get(stage_pk)
         if request.form['name']:
-            project.name = request.form['name']
+            stage.name = request.form['name']
         if request.form['description']:
-            project.description = request.form['description']
-        project.save()
-        return {'project': model_to_dict(project)}, 202
+            stage.description = request.form['description']
+        stage.save()
+        return {'stage': model_to_dict(stage)}, 202
 
     def post(self, project_pk, stage_pk):
         '''
@@ -215,6 +210,7 @@ class Stage(Resource):
             name=request.form['name'],
             description=request.form['description']
         ), 201
+        return {'stage': model_to_dict(stage)}, 202
 
     def delete(self, project_pk, stage_pk):
         try:
@@ -236,14 +232,14 @@ api.add_resource(Stage, '/projects/<project_pk>/stages/<stage_pk>')
 
 class Activities(Resource):
     '''
-    This generic endpoint is used for getting a list of all stages, and for posting a new project.
-    # /projects/{project_pk}/stages - GET
-    '''
+    This generic endpoint is used for getting a list of all activites for a
+    stage, and for posting a new activity.
     # /projects/{project_pk}/stages/{stage_pk}/activities/ - GET
+    '''
 
     def get(self, project_pk, stage_pk):
         '''
-        gets all activities
+            gets all activities
         '''
         activities = models.Activity.select().where(
             models.Activity.stage.project == project_pk).where(
@@ -253,12 +249,14 @@ class Activities(Resource):
             return_array.append(model_to_dict(activity))
         return {'activities': json.dumps(return_array)}
 
-    def post(self):
+    def post(self, project_pk, stage_pk):
         '''
-        # XTRA - /stages/- POST # NOTSURE
-        Though this wasn't requested, I propose posting new data here is the best way to make a new stage.
+            # XTRA - /project/{project_pk}/stages/- POST
+            Though this wasn't requested, I propose posting new data here is
+            the best way to make a new stage.
         '''
         activity = models.Activity.create(
+            stage=stage_pk,
             name=request.form['name'],
             description=request.form['description']
         )
@@ -271,7 +269,8 @@ api.add_resource(
 
 class Activity(Resource):
     '''
-    # /projects/{project_pk}/stages/{stage_pk}/activities/{pk} - GET, PUT, POST, DELETE
+        # /projects/{project_pk}/stages/{stage_pk}/activities/{pk}
+            - GET, PUT, POST, DELETE
     '''
 
     def get(self, project_pk, stage_pk, pk):
@@ -290,27 +289,30 @@ class Activity(Resource):
 
     def put(self, project_pk, stage_pk, pk):
         '''
-            put is idempotent, calling it multiple times produces the same result
+            put is idempotent,
+            calling it multiple times produces the same result
         '''
-
-        print(request.form['name'])
-        print(request.form['description'])
         with models.DATABASE.atomic():
             project = models.Project.get(project_pk)
             stage = models.Stage.get(stage_pk)
             activity = models.Activity.get(pk)
         if request.form['name']:
-            project.name = request.form['name']
+            activity.name = request.form['name']
         if request.form['description']:
-            project.description = request.form['description']
-            project.save()
-            return {'acticity': model_to_dict(activity)}, 202
+            activity.description = request.form['description']
+        activity.save()
+        return {'activity': model_to_dict(activity)}, 202
 
     def post(self, project_pk, stage_pk, pk):
+        '''
+            There is no child element, so post just updates now
+        '''
         activity = models.Activity.get(pk)
 
-        activity.name = request.form['name']
-        activity.description = request.form['description']
+        if request.form['name']:
+            activity.name = request.form['name']
+        if request.form['description']:
+            activity.description = request.form['description']
         activity.save()
 
         return model_to_dict(activity), 201
@@ -321,13 +323,12 @@ class Activity(Resource):
                 project = models.Project.get(project_pk)
                 stage = models.Stage.get(stage_pk)
                 activity = models.Activity.get(pk)
-
         except DoesNotExist:
             return abort(404)
-        if stage.project == project_pk:
+        if stage.project == project_pk and activity.stage == stage_pk:
             activity.delete_instance(recursive=True)
             return '', 204
-        return 'Project pk and stage project do not match.', 403
+        return 'Primary keys not match.', 403
 
 
 api.add_resource(
@@ -338,3 +339,4 @@ if __name__ == '__main__':
     models.initialize()
     if DEBUG:
         app.run(debug=DEBUG, host=HOST, port=PORT)
+    # TODO: make an else for running in prod
